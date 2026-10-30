@@ -71,7 +71,13 @@ function parsePlist(xml: string): PlistValue {
 const home = "/Users/me";
 const root = "/Users/me/.simlock";
 
-function definitionFor(role: "worker" | "gateway", env: NodeJS.ProcessEnv = {}): ServiceDefinition {
+const launcher = "/Users/me/.nix-profile/bin/simlock-daemon";
+
+function definitionFor(
+  role: "worker" | "gateway",
+  env: NodeJS.ProcessEnv = {},
+  launcherPath?: string,
+): ServiceDefinition {
   return serviceDefinition({
     role,
     root,
@@ -79,6 +85,7 @@ function definitionFor(role: "worker" | "gateway", env: NodeJS.ProcessEnv = {}):
     home,
     nodePath: "/opt/node/bin/node",
     mainPath: "/opt/simlock/dist/daemon/main.js",
+    ...(launcherPath === undefined ? {} : { launcher: launcherPath }),
     env,
   });
 }
@@ -107,7 +114,7 @@ async function installed(
 }
 
 describe("LaunchdServiceManager (#830)", () => {
-  it("launchd reads the plist install wrote: arguments, saved variables, service keys and log paths", async () => {
+  it("launchd reads the plist install wrote: arguments, saved variables, service keys and log paths, and a launcher stands in for Node and main.js", async () => {
     const saved = {
       SIMLOCK_DRIVERS_MODULE: "/x/drivers.js",
       PATH: "/usr/bin:/opt/bin&sbin:/odd<dir>",
@@ -120,10 +127,18 @@ describe("LaunchdServiceManager (#830)", () => {
       JAVA_HOME: "/jdk",
       DEVELOPER_DIR: "/Xcode/Developer",
     };
-    const cases = [
+    const cases: readonly {
+      readonly label: string;
+      readonly role: "worker" | "gateway";
+      readonly env: NodeJS.ProcessEnv;
+      readonly launcher?: string;
+      readonly arguments: readonly string[];
+      readonly variables: Record<string, string>;
+      readonly logPath: string;
+    }[] = [
       {
         label: "worker, every saved variable set, secrets present in the shell",
-        role: "worker" as const,
+        role: "worker",
         env: { ...saved, SIMLOCK_ADMIN_TOKEN: "secret", SIMLOCK_AGENT_ID: "agent" },
         arguments: ["/opt/node/bin/node", "/opt/simlock/dist/daemon/main.js"],
         variables: { SIMLOCK_HOME: root, ...saved },
@@ -131,16 +146,25 @@ describe("LaunchdServiceManager (#830)", () => {
       },
       {
         label: "gateway, no variable set",
-        role: "gateway" as const,
+        role: "gateway",
         env: {},
         arguments: ["/opt/node/bin/node", "/opt/simlock/dist/daemon/main.js", "--gateway"],
+        variables: { SIMLOCK_HOME: root },
+        logPath: `${root}/gateway/daemon.log`,
+      },
+      {
+        label: "gateway through a launcher",
+        role: "gateway",
+        env: {},
+        launcher,
+        arguments: [launcher, "--gateway"],
         variables: { SIMLOCK_HOME: root },
         logPath: `${root}/gateway/daemon.log`,
       },
     ];
 
     for (const testCase of cases) {
-      const definition = definitionFor(testCase.role, testCase.env);
+      const definition = definitionFor(testCase.role, testCase.env, testCase.launcher);
       const { plist, filesystem } = await installed(definition);
       const raw = await filesystem.readFile(definition.path);
       if (testCase.role === "worker") {
@@ -236,7 +260,7 @@ describe("LaunchdServiceManager (#830)", () => {
     }
   });
 
-  it("state answers not-installed without asking launchd, broken before not-loaded, else installed or not-loaded by launchctl print", async () => {
+  it("state answers not-installed without asking launchd, broken before not-loaded, else installed or not-loaded by launchctl print, and looks for no file behind a launcher's flag", async () => {
     const definition = definitionFor("worker");
     const nodePath = definition.command;
     const mainPath = definition.args[0] ?? "";
@@ -247,6 +271,7 @@ describe("LaunchdServiceManager (#830)", () => {
     const printed = { command: "launchctl", args: ["print", `gui/501/${definition.name}`] };
     const ok = (stdout: string) => ({ code: 0, stdout, stderr: "" });
     const programArguments = ok(JSON.stringify({ ProgramArguments: [nodePath, mainPath] }));
+    const launcherArguments = ok(JSON.stringify({ ProgramArguments: [launcher, "--gateway"] }));
     const cases = [
       {
         label: "no plist",
@@ -288,6 +313,23 @@ describe("LaunchdServiceManager (#830)", () => {
           { match: printed, result: { code: 113, stdout: "", stderr: "Could not find service" } },
         ],
         state: { state: "not-loaded", path: definition.path },
+      },
+      {
+        label: "a launcher followed by the gateway flag, whole and loaded",
+        present: [launcher],
+        plist: true,
+        script: [
+          { match: plutil, result: launcherArguments },
+          { match: printed, result: ok("") },
+        ],
+        state: { state: "installed", path: definition.path },
+      },
+      {
+        label: "a launcher that is gone",
+        present: [],
+        plist: true,
+        script: [{ match: plutil, result: launcherArguments }],
+        state: { state: "broken", path: definition.path, missing: [launcher] },
       },
     ];
     for (const testCase of cases) {
@@ -616,6 +658,13 @@ describe("SystemdServiceManager (#832)", () => {
         label: "enabled",
         present: [node, main],
         text: unitText(`${node} ${main}`),
+        script: [isEnabled(reply(0, "enabled\n"))],
+        state: { state: "installed", path: definition.path },
+      },
+      {
+        label: "a launcher followed by the gateway flag, enabled",
+        present: [launcher],
+        text: unitText(`${launcher} --gateway`),
         script: [isEnabled(reply(0, "enabled\n"))],
         state: { state: "installed", path: definition.path },
       },

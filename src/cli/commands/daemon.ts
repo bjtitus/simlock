@@ -4,15 +4,16 @@ import { stopRunningDaemon } from "../daemon-service.js";
 import { commandArgs, isHelp, subcommand, writeResult } from "../args.js";
 import { consoleLines, formatStatus, serviceLine, type ServiceReport } from "../format.js";
 import type { StatusGetOutput } from "../../admin/index.js";
-import type { ServiceDefinition, ServiceManager } from "../../ports/index.js";
+import type { ServiceManager } from "../../ports/index.js";
 import type { CommandContext } from "../tree.js";
+import type { CliServiceAccess } from "../types.js";
 
 function serviceAccess(
   environment: CommandContext["environment"],
   command: "install" | "uninstall",
 ): {
   readonly manager: ServiceManager;
-  readonly definition: () => Promise<ServiceDefinition>;
+  readonly definition: CliServiceAccess["definition"];
   readonly user: () => string;
 } {
   const { service } = environment;
@@ -116,15 +117,25 @@ async function run(argv: readonly string[], context: CommandContext): Promise<nu
     follow: { type: "boolean" },
     help: { type: "boolean", short: "h" },
     json: { type: "boolean" },
+    launcher: { type: "string" },
   });
   if (command === undefined || isHelp(command) || values.help) {
     environment.stdout.write(
-      "Usage: simlock daemon <start|stop|status|logs [--follow]|install|uninstall>\n",
+      "Usage: simlock daemon <start|stop|status|logs [--follow]|install [--launcher <path>]|uninstall>\n",
     );
     return 0;
   }
   if (values.positionals.length > 0) throw new UsageError("daemon accepts exactly one subcommand");
   if (values.follow && command !== "logs") throw new UsageError("--follow applies only to logs");
+  const launcher = typeof values.launcher === "string" ? values.launcher : undefined;
+  if (launcher !== undefined && command !== "install") {
+    throw new UsageError("--launcher applies only to install");
+  }
+  // why: install runs on macOS and Linux only, where an absolute path starts with a slash; the
+  // service manager runs the program from no working directory a relative path could mean.
+  if (launcher !== undefined && !launcher.startsWith("/")) {
+    throw new UsageError("--launcher needs an absolute path");
+  }
   if (command === "start") {
     const status = await startDaemon(context);
     if (values.json) writeResult((value) => environment.stdout.write(value), { status: "running" });
@@ -133,7 +144,7 @@ async function run(argv: readonly string[], context: CommandContext): Promise<nu
   }
   if (command === "install") {
     const { manager, definition, user: lookupUser } = serviceAccess(environment, "install");
-    const service = await definition();
+    const service = await definition(launcher === undefined ? {} : { launcher });
     const stopped = await stopRunningDaemon(environment, token);
     await manager.install(service);
     const status = await startDaemon(context);

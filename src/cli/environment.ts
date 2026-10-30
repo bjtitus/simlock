@@ -348,7 +348,7 @@ export function buildCliEnvironment(
             manager: service.manager,
             platform: service.platform,
             user: service.user,
-            definition: async () => {
+            definition: async (options = {}) => {
               const { serviceDefinition } = await import("../ports/index.js");
               return serviceDefinition({
                 ...(service.manager === undefined ? {} : { manager: service.manager.manager }),
@@ -358,6 +358,7 @@ export function buildCliEnvironment(
                 home: service.home,
                 nodePath: service.nodePath,
                 mainPath: service.mainPath,
+                ...(options.launcher === undefined ? {} : { launcher: options.launcher }),
                 env,
               });
             },

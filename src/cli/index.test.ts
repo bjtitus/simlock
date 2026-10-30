@@ -9914,7 +9914,8 @@ describe("CLI: daemon install (#830)", () => {
     return { exitCode, output, serviceManager };
   }
 
-  it("an operator runs daemon install on macOS: the service is installed, the daemon answers, install prints the name, Daemon running and the hint, and --json prints the status and service", async () => {
+  it("an operator runs daemon install on macOS: the service is installed, the daemon answers, install prints the name, Daemon running and the hint, --launcher names the program the service runs, and --json prints the status and service", async () => {
+    const launcher = "/Users/me/.nix-profile/bin/simlock-daemon";
     const cases = [
       {
         label: "worker, default home",
@@ -9922,6 +9923,7 @@ describe("CLI: daemon install (#830)", () => {
         role: "worker" as const,
         root: join(home, ".simlock"),
         name: "com.callstack.simlock.worker",
+        command: nodePath,
         args: [mainPath],
         logPath: "/Users/me/.simlock/daemon.log",
       },
@@ -9931,6 +9933,7 @@ describe("CLI: daemon install (#830)", () => {
         role: "gateway" as const,
         root: join(home, ".simlock"),
         name: "com.callstack.simlock.gateway",
+        command: nodePath,
         args: [mainPath, "--gateway"],
         logPath: "/Users/me/.simlock/gateway/daemon.log",
       },
@@ -9940,8 +9943,19 @@ describe("CLI: daemon install (#830)", () => {
         role: "worker" as const,
         root: "/tmp/x",
         name: "com.callstack.simlock.worker.2e56aa",
+        command: nodePath,
         args: [mainPath],
         logPath: "/tmp/x/daemon.log",
+      },
+      {
+        label: "gateway through a launcher",
+        argv: ["--gateway", "daemon", "install", "--launcher", launcher],
+        role: "gateway" as const,
+        root: join(home, ".simlock"),
+        name: "com.callstack.simlock.gateway",
+        command: launcher,
+        args: ["--gateway"],
+        logPath: "/Users/me/.simlock/gateway/daemon.log",
       },
     ];
 
@@ -9954,7 +9968,7 @@ describe("CLI: daemon install (#830)", () => {
       expect(serviceManager.installs[0], label).toMatchObject({
         name: testCase.name,
         path: `/Users/me/Library/LaunchAgents/${testCase.name}.plist`,
-        command: nodePath,
+        command: testCase.command,
         args: testCase.args,
         logPath: testCase.logPath,
       });
@@ -9995,6 +10009,25 @@ describe("CLI: daemon install (#830)", () => {
         path: "/Users/me/Library/LaunchAgents/com.callstack.simlock.worker.plist",
       },
     });
+
+    const errorOf = (stderr: string): { code: string; message: string } =>
+      (
+        JSON.parse(stderr.trim().split("\n").at(-1) ?? "") as {
+          error: { code: string; message: string };
+        }
+      ).error;
+    for (const [argv, message] of [
+      [
+        ["daemon", "install", "--launcher", "bin/simlock-daemon"],
+        "--launcher needs an absolute path",
+      ],
+      [["daemon", "status", "--launcher", launcher], "--launcher applies only to install"],
+    ] as const) {
+      const refused = await install({ argv, role: "worker", root: join(home, ".simlock") });
+      expect(refused.exitCode, argv.join(" ")).toBe(2);
+      expect(errorOf(refused.output.stderr), argv.join(" ")).toEqual({ code: "USAGE", message });
+      expect(refused.serviceManager.installs, argv.join(" ")).toEqual([]);
+    }
   });
 
   it("an operator on Linux runs daemon install: the unit lands in the user config directory, and install prints systemd and the linger hint", async () => {

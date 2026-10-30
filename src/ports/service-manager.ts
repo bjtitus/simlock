@@ -28,6 +28,10 @@ export interface ServiceDefinitionInput {
   readonly home: string;
   readonly nodePath: string;
   readonly mainPath: string;
+  /** why: a program that runs the daemon in the foreground in place of Node and `main.js`, for an
+   * install whose paths change on every upgrade (a Nix profile, a version manager): the service
+   * then names a path that stays, and survives the upgrade without another install. */
+  readonly launcher?: string;
   readonly env: NodeJS.ProcessEnv;
 }
 
@@ -72,8 +76,11 @@ export function serviceDefinition(input: ServiceDefinitionInput): ServiceDefinit
       manager === "systemd"
         ? join(unitDirectory(input), `${name}.service`)
         : join(input.home, "Library", "LaunchAgents", `${name}.plist`),
-    command: input.nodePath,
-    args: [input.mainPath, ...(input.role === "gateway" ? ["--gateway"] : [])],
+    command: input.launcher ?? input.nodePath,
+    args: [
+      ...(input.launcher === undefined ? [input.mainPath] : []),
+      ...(input.role === "gateway" ? ["--gateway"] : []),
+    ],
     environment,
     logPath: join(input.dataDirectory, "daemon.log"),
   };
@@ -180,10 +187,14 @@ ${variables}
 `;
 }
 
+// why: the program and its first argument are the paths a service can lose (Node and `main.js`);
+// a launcher's first argument is `--gateway`, a flag, which is not a file to look for.
 function savedPaths(json: string): readonly string[] {
   const parsed = JSON.parse(json) as { ProgramArguments?: unknown };
   const args = Array.isArray(parsed.ProgramArguments) ? (parsed.ProgramArguments as unknown[]) : [];
-  return args.slice(0, 2).filter((value): value is string => typeof value === "string");
+  return args
+    .slice(0, 2)
+    .filter((value): value is string => typeof value === "string" && isAbsolute(value));
 }
 
 export class ServiceFailedError extends Error {
@@ -310,7 +321,7 @@ function savedUnitPaths(unit: string): readonly string[] {
   const line = unit.split("\n").find((candidate) => candidate.startsWith("ExecStart="));
   return (line?.slice("ExecStart=".length).trim().split(/\s+/) ?? [])
     .slice(0, 2)
-    .filter((path) => path !== "");
+    .filter((path) => isAbsolute(path));
 }
 
 export class SystemdServiceManager implements ServiceManager {

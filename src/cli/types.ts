@@ -47,7 +47,7 @@ export interface CliServiceAccess {
   readonly platform: NodeJS.Platform;
   /** why: read only where the linger hint needs it; the lookup throws for a uid with no passwd entry. */
   readonly user: () => string;
-  readonly definition: () => Promise<ServiceDefinition>;
+  readonly definition: (options?: { readonly launcher?: string }) => Promise<ServiceDefinition>;
 }
 
 export interface CliEnvironment {
