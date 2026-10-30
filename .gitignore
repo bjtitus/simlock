@@ -11,3 +11,7 @@ test-results/
 playwright-report/
 .agent-device
 .slow-lane.env
+
+# nix build
+result
+result-*

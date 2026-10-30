@@ -38,6 +38,17 @@ simlock release <lease-id>
 
 </Steps>
 
+<Aside title="With Nix">
+The repository is a flake that wraps the same npm release:
+
+```sh
+nix run github:callstackincubator/simlock -- doctor     # try it
+nix profile install github:callstackincubator/simlock   # keep it
+```
+
+It installs `simlock` and `simlock-daemon`, a program that runs the daemon in the foreground at a path your profile keeps across upgrades, for a login service you manage yourself. `simlock update` does not apply to this install: upgrade it with Nix.
+</Aside>
+
 There is no setup step. The daemon, the background process that owns your devices, starts on demand the first time a command needs it. Simlock keeps its data, devices and configuration under `~/.simlock`.
 
 Simlock does not register itself to start at login. Nothing needs to run before your first command, and the daemon keeps running after it starts.
