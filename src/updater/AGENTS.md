@@ -19,5 +19,5 @@ Each probe call has a 30 s limit and `daemon start` a 2 min one (`index.ts` `CAL
 Progress is one JSON line per stage on stdout: `{"stage":"installing"}`, `{"stage":"restarting"}`.
 
 - `main.ts` imports everything statically: the install replaces the files on disk, so the whole updater must be loaded before it starts.
-- `checkInstall` compares the real path of the running package root with `<npm root -g>/simlock`; anything else is `{ ok: false, foundPath }`.
+- `checkInstall` compares the real path of the running package root with `<npm root -g>/simlock`; anything else is `{ ok: false, foundPath }`. The coordinator refuses earlier, with the same `UPDATE_UNSUPPORTED_INSTALL`, when `npm view` answers `npmMissing` (no `npm` beside the daemon's Node).
 - The new daemon is not killed when it ignores `daemon.stop` for 10 minutes: its pid is not known to the probe.

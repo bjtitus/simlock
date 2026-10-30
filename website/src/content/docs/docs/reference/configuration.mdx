@@ -169,7 +169,7 @@ Any other field in a target stops the daemon from starting. A target never downl
 
 | Key                               | Type                                | Default              | Meaning                                                                                                             | Applies to |
 | --------------------------------- | ----------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `update.check`                          | boolean             | `true`             | Read npm's latest Simlock version at start and every 24 hours, so `simlock status` can say when a newer one exists. `false` makes no npm request. | Both       |
+| `update.check`                          | boolean             | `true`             | Read npm's latest Simlock version at start and every 24 hours, so `simlock status` can say when a newer one exists. `false` makes no npm request. A Node with no `npm` beside it (a Nix or distro package) logs `Latest Simlock version check is off` once, at `info`, and asks nothing again. | Both       |
 
 ## Downloads
 

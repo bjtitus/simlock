@@ -158,6 +158,14 @@ class Coordinator implements UpdateCoordinator {
 
   async #resolve(spec: string): Promise<string> {
     const viewed = await this.options.npm.view(`simlock@${spec}`);
+    // why: without npm the install is not npm's to change, which is the refusal `checkInstall`
+    // gives a checkout; naming it here keeps a failed lookup from reading as a registry problem.
+    if (!viewed.ok && viewed.npmMissing === true) {
+      throw new DispatchError(
+        "UPDATE_UNSUPPORTED_INSTALL",
+        `simlock was not installed with npm i -g (${viewed.message}). Update it by hand.`,
+      );
+    }
     if (!viewed.ok) {
       throw new DispatchError(
         "UPDATE_RESOLVE_FAILED",

@@ -1,11 +1,14 @@
 import { dirname, join } from "node:path";
 
-import type { Filesystem } from "./filesystem.js";
+import { isMissingPathError, type Filesystem } from "./filesystem.js";
 import type { ProcessRunner } from "./process-runner.js";
 
+/** why: `npmMissing` marks the one failure that is not npm's answer but its absence: a Node with no
+ * `npm` beside it (a Nix or distro package), where no npm request can ever work and the callers
+ * stop asking instead of reporting a failed request. */
 export type NpmOutcome =
   | { readonly ok: true; readonly output: string }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: false; readonly message: string; readonly npmMissing?: true };
 
 export interface NpmCli {
   view(spec: string): Promise<NpmOutcome>;
@@ -81,7 +84,13 @@ export class NodeNpmCli implements NpmCli {
 
   async #run(args: readonly string[], timeoutMs: number, limit: string): Promise<NpmOutcome> {
     const node = this.options.execPath ?? process.execPath;
-    const script = await this.options.filesystem.realpath(join(dirname(node), "npm"));
+    let script: string;
+    try {
+      script = await this.options.filesystem.realpath(join(dirname(node), "npm"));
+    } catch (error: unknown) {
+      if (!isMissingPathError(error)) throw error;
+      return { ok: false, npmMissing: true, message: `no npm beside ${node}` };
+    }
     const result = await this.options.runner.run(node, [script, ...args], {
       cwd: this.options.dataDirectory,
       timeoutMs,

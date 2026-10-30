@@ -4671,6 +4671,29 @@ describe("startDaemon version check", () => {
     expect(checked).toEqual({ calls: 1, pending: unchecked.pending });
   });
 
+  it("a daemon whose Node has no npm beside it logs once, at info, that the version check is off, and asks npm nothing again", async () => {
+    const npm = new FakeNpmCli({
+      view: [{ ok: false, npmMissing: true, message: "no npm beside /opt/node/bin/node" }],
+    });
+
+    const { clock, daemon, sink } = await startChecked(npm);
+
+    await expect
+      .poll(() => sink.records.filter((record) => record.message.startsWith("Latest Simlock")))
+      .toEqual([
+        expect.objectContaining({
+          level: "info",
+          message: "Latest Simlock version check is off",
+          fields: { message: "no npm beside /opt/node/bin/node" },
+        }),
+      ]);
+    expect(await latestOf(daemon)).toBeNull();
+    clock.advance(3 * 24 * 60 * 60 * 1000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    expect(npm.calls).toEqual([{ method: "view", spec: "simlock@latest" }]);
+    expect(sink.records.filter((record) => record.level === "warn")).toEqual([]);
+  });
+
   it("a daemon runs the version check at start without delaying ready, then after 24 h, and reports a newer latest in status.get and the daemon.update query; npm failing or answering junk keeps the last value; a stopped daemon never schedules the next check", async () => {
     const pending: ((outcome: NpmOutcome) => void)[] = [];
     const npm: NpmCli = {

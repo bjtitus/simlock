@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -61,6 +61,28 @@ describe("NodeNpmCli", () => {
       const seen = JSON.parse(outcome.ok ? outcome.output : "{}") as Record<string, unknown>;
       expect(seen).toEqual({ argv, script, cwd: dataDirectory });
     }
+  });
+
+  it("answers npmMissing without spawning anything when no npm sits beside the daemon's Node", async () => {
+    const runner = new ScriptedProcessRunner([]);
+    const { npm, script } = await stubNpm(runner);
+    await rm(script);
+
+    const outcomes = [
+      await npm.view("simlock@0.4.0"),
+      await npm.install("simlock@0.4.0"),
+      await npm.globalRoot(),
+    ];
+
+    const node = join(dirname(dirname(script)), "bin", "node");
+    expect(outcomes).toEqual(
+      Array.from({ length: 3 }, () => ({
+        ok: false,
+        npmMissing: true,
+        message: `no npm beside ${node}`,
+      })),
+    );
+    expect(runner.calls).toEqual([]);
   });
 
   it("keeps the last 2000 characters of npm's stderr when it fails", async () => {

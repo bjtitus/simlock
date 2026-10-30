@@ -456,7 +456,7 @@ simlock 0.4.0 is running
 - The install fails: `Update failed (installing): <npm's message>`, exit 1. The old daemon keeps running and takes leases again.
 - The new version does not start: the old version is installed again and started. `Update failed (restarting): <reason>. Rolled back to <version>.`, exit 1.
 - The daemon does not answer within 15 minutes after it restarts: `The daemon did not come back; run simlock status.`, exit 1.
-- Simlock must be installed with `npm i -g simlock`. Otherwise the command stops with `UPDATE_UNSUPPORTED_INSTALL`. A worker and a gateway of one user share the install, so while the other runs it stops with `UPDATE_SHARED_INSTALL`. npm failing to find the version is `UPDATE_RESOLVE_FAILED`. See [Errors](/simlock/docs/reference/errors#updating-simlock).
+- Simlock must be installed with `npm i -g simlock`, on a Node that has `npm` beside it. Otherwise the command stops with `UPDATE_UNSUPPORTED_INSTALL`. A worker and a gateway of one user share the install, so while the other runs it stops with `UPDATE_SHARED_INSTALL`. npm failing to find the version is `UPDATE_RESOLVE_FAILED`. See [Errors](/simlock/docs/reference/errors#updating-simlock).
 
 `POST /v1/update` does the same over HTTP. On a machine that runs a gateway, `simlock update --gateway` updates the gateway itself. A gateway holds no leases of its own, so it does not wait: it installs and restarts at once, and a request in that gap fails as in any gateway restart. To update a worker from a gateway, use [`simlock worker update`](#simlock-worker).
 

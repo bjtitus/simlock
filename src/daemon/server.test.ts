@@ -3586,6 +3586,20 @@ describe("daemon.update", () => {
         },
       },
       {
+        name: "no npm beside the daemon's Node",
+        setup: {
+          view: { ok: false, npmMissing: true, message: "no npm beside /opt/node/bin/node" },
+        },
+        reply: {
+          ok: false,
+          error: {
+            code: "UPDATE_UNSUPPORTED_INSTALL",
+            message:
+              "simlock was not installed with npm i -g (no npm beside /opt/node/bin/node). Update it by hand.",
+          },
+        },
+      },
+      {
         name: "the other role's daemon of this user runs",
         setup: { otherRoleRunning: true },
         reply: {

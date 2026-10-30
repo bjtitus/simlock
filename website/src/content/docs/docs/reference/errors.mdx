@@ -101,7 +101,7 @@ Branch on `code`, not on the message: the message wording can change, the code d
 | Code | Exit | HTTP | Meaning | What to do |
 | --- | --- | --- | --- | --- |
 | `UPDATE_RESOLVE_FAILED` | 1 | 502 | npm could not find the version (`No match found for version 9.9.9`) or could not be reached. The message carries npm's own text. Nothing changed. | Check the version with `npm view simlock versions`, or npm's registry and network settings on that machine. |
-| `UPDATE_UNSUPPORTED_INSTALL` | 2 | 409 | Simlock was not installed with `npm i -g simlock` (a source checkout, a pnpm global). The message names where it runs from. Nothing changed. | Update it the way you installed it. |
+| `UPDATE_UNSUPPORTED_INSTALL` | 2 | 409 | Simlock was not installed with `npm i -g simlock` (a source checkout, a pnpm global, a Nix or distro package whose Node has no `npm` beside it). The message names where it runs from, or the Node that has no npm. Nothing changed. | Update it the way you installed it. |
 | `UPDATE_SHARED_INSTALL` | 2 | 409 | The worker and the gateway of this user share one install, and the other one is running. Nothing changed. | Stop the other daemon (`simlock daemon stop`, or `simlock --gateway daemon stop`), update, then start it again. |
 
 ## Access
